@@ -2,122 +2,137 @@ import streamlit as st
 import folium
 from folium import plugins
 from streamlit_folium import st_folium
-import pandas as pd
-import plotly.express as px
 
 # --------------------------------------------------------
-# 1. إعدادات الصفحة (يجب أن يكون هذا أول سطر في الكود)
+# 1. إعدادات الصفحة (يجب أن يكون في أول سطر)
 # --------------------------------------------------------
 st.set_page_config(
-    page_title="مرصد تركمن إيلي الجغرافي",
-    page_icon="🗺️",
+    page_title="Turkmeneli Maps",
+    page_icon="📍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed" # القائمة مغلقة لزيادة مساحة الخريطة
 )
 
-# تخصيص CSS لدعم اللغة العربية (RTL) وتحسين المظهر
+# --------------------------------------------------------
+# 2. حقن CSS لجعل التصميم يشبه Google Maps (ملء الشاشة)
+# --------------------------------------------------------
 st.markdown("""
 <style>
-    .stApp { direction: rtl; }
-    div[data-testid="column"] { text-align: right; }
-    h1, h2, h3, h4, p, div { font-family: 'Segoe UI', Tahoma, sans-serif; }
-    .stMetric { 
-        background-color: #f8f9fa; 
+    /* إزالة الهوامش الافتراضية لـ Streamlit */
+    .block-container {
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+        padding-left: 0rem;
+        padding-right: 0rem;
+        max-width: 100%;
+    }
+    
+    /* تنسيق القائمة الجانبية */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #ddd;
+        width: 320px !important;
+    }
+    
+    /* تحسين شكل الأزرار */
+    .stButton button {
+        background-color: #1a73e8; /* لون أزرق جوجل */
+        color: white;
+        border-radius: 20px;
+        width: 100%;
+    }
+    
+    /* صندوق المعلومات العائم في الأسفل */
+    .info-box {
+        background-color: white; 
         padding: 15px; 
-        border-radius: 10px; 
-        border-right: 5px solid #00a8cc;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        border-radius: 8px; 
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        text-align: center;
+        margin: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------
-# 2. تجهيز البيانات (Data Layer)
-# --------------------------------------------------------
-data = {
-    "المدينة": ["كركوك", "تلعفر", "طوز خورماتو", "مندلي", "كفري", "آلتون كوبري", "خانقين", "داقوق"],
-    "المحافظة": ["كركوك", "نينوى", "صلاح الدين", "ديالى", "ديالى", "كركوك", "ديالى", "كركوك"],
-    "التعداد التقديري": [1250000, 500000, 220000, 55000, 45000, 60000, 180000, 70000],
-    "خط العرض": [35.47, 36.37, 34.89, 33.75, 34.33, 35.75, 34.35, 35.13],
-    "خط الطول": [44.39, 42.45, 44.70, 45.55, 45.10, 44.14, 45.38, 44.40],
-    "النوع": ["مركز محافظة", "قضاء", "قضاء", "ناحية", "قضاء", "ناحية", "قضاء", "قضاء"]
-}
-df = pd.DataFrame(data)
-
-# --------------------------------------------------------
-# 3. القائمة الجانبية (Sidebar)
+# 3. القائمة الجانبية (لوحة التحكم والبحث)
 # --------------------------------------------------------
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Turkmeneli_flag.svg/320px-Turkmeneli_flag.svg.png", width=100)
-    st.title("🎛️ لوحة التحكم")
+    st.title("🗺️ خرائط المنطقة")
     
-    st.markdown("### 🔍 فلترة البيانات")
-    # فلتر المحافظة
-    all_govs = ["الكل"] + list(df["المحافظة"].unique())
-    selected_gov = st.selectbox("اختر المحافظة:", all_govs)
-    
+    # محاكاة "الاتجاهات" (Directions)
+    with st.expander("🚙 الاتجاهات والمسار", expanded=True):
+        start = st.text_input("نقطة الانطلاق", value="موقعي الحالي")
+        end = st.selectbox("الوجهة", ["كركوك - المركز", "تلعفر - القلعة", "طوز خورماتو", "آلتون كوبري"])
+        
+        if st.button("بحث عن المسار"):
+            st.success(f"تم رسم المسار المقترح إلى {end}")
+            st.caption("ℹ️ المسافة: 45 كم | الوقت المتوقع: 40 دقيقة (حركة مرور خفيفة)")
+
     st.markdown("---")
-    st.markdown("### 🎨 إعدادات الخريطة")
-    # خيارات الخريطة
-    map_style = st.radio("نمط العرض:", ["قياسي (Light)", "داكن (Dark Mode)", "أقمار صناعية"], index=0)
-    show_boundary = st.toggle("إظهار حدود المنطقة", value=True)
     
+    # خيارات الطبقات (Layers)
+    st.write("**نوع الخريطة:**")
+    map_style = st.radio(
+        "اختر المظهر:",
+        ["خرائط (افتراضي)", "أقمار صناعية (Satellite)", "تضاريس (Terrain)"],
+        label_visibility="collapsed"
+    )
+
     st.markdown("---")
-    st.caption("تطبيق MVP تفاعلي - الإصدار 1.0")
+    
+    # خيارات إضافية
+    show_traffic = st.checkbox("عرض حركة المرور (تجريبي)", value=True)
+    show_borders = st.checkbox("إظهار حدود منطقة تركمن إيلي", value=True)
+    
+    st.info("نظام MVP تم تطويره باستخدام Python Streamlit")
 
 # --------------------------------------------------------
-# 4. معالجة البيانات بناءً على الفلتر
-# --------------------------------------------------------
-if selected_gov != "الكل":
-    filtered_df = df[df["المحافظة"] == selected_gov]
-    # تكبير الخريطة تلقائياً إذا تم اختيار محافظة محددة
-    zoom_level = 9
-    center_lat = filtered_df["خط العرض"].mean()
-    center_lon = filtered_df["خط الطول"].mean()
-else:
-    filtered_df = df
-    zoom_level = 7
-    center_lat, center_lon = 35.00, 44.00
-
-# --------------------------------------------------------
-# 5. واجهة المؤشرات (KPIs)
-# --------------------------------------------------------
-st.title("📍 مرصد تركمن إيلي الجغرافي")
-st.markdown("نظام تفاعلي لتحليل البيانات الجغرافية والسكانية.")
-
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("عدد المدن", f"{len(filtered_df)}")
-with col2:
-    total_pop = filtered_df["التعداد التقديري"].sum()
-    st.metric("إجمالي السكان (التقديري)", f"{total_pop:,.0f}")
-with col3:
-    max_city = filtered_df.loc[filtered_df["التعداد التقديري"].idxmax()]["المدينة"]
-    st.metric("أكبر كثافة", max_city)
-with col4:
-    st.metric("المحافظات المغطاة", f"{filtered_df['المحافظة'].nunique()}")
-
-st.divider()
-
-# --------------------------------------------------------
-# 6. بناء الخريطة (Map Logic)
+# 4. منطق بناء الخريطة (Map Logic)
 # --------------------------------------------------------
 def create_map():
-    # تحديد الخلفية (Tiles)
-    if map_style == "داكن (Dark Mode)":
-        tiles = "CartoDB dark_matter"
-        attr = "CartoDB"
-    elif map_style == "أقمار صناعية":
+    # تحديد نوع البلاطات (Tiles)
+    if map_style == "أقمار صناعية (Satellite)":
         tiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
         attr = "Esri WorldImagery"
+    elif map_style == "تضاريس (Terrain)":
+        tiles = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+        attr = "OpenTopoMap"
     else:
-        tiles = "OpenStreetMap"
-        attr = "OpenStreetMap"
-    
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom_level, tiles=tiles, attr=attr)
+        # CartoDB Voyager هو الأقرب لتصميم Google Maps النظيف
+        tiles = "CartoDB voyager"
+        attr = "CartoDB"
 
-    # رسم حدود المنطقة (Polygon)
-    if show_boundary:
+    # إنشاء الخريطة (مركزة على كركوك)
+    m = folium.Map(
+        location=[35.47, 44.39], 
+        zoom_start=9, 
+        tiles=tiles, 
+        attr=attr,
+        control_scale=True,
+        zoom_control=False # سنضيف أزرار تحكم مخصصة لاحقاً أو نعتمد على الماوس
+    )
+
+    # 1. شريط البحث (Google Search Bar)
+    plugins.Geocoder(
+        collapsed=False,
+        position='topleft',
+        add_marker=True,
+        placeholder="ابحث هنا (مثل: كركوك، بغداد...)"
+    ).add_to(m)
+
+    # 2. زر تحديد الموقع (GPS)
+    plugins.LocateControl(
+        auto_start=False,
+        position='bottomright',
+        strings={"title": "أين أنا؟"}
+    ).add_to(m)
+
+    # 3. زر ملء الشاشة
+    plugins.Fullscreen(position='topright').add_to(m)
+
+    # 4. رسم حدود المنطقة (Polygon)
+    if show_borders:
         region_coords = [
             (36.37, 42.45), (36.34, 43.13), (35.95, 43.60), 
             (35.47, 44.39), (34.89, 44.70), (34.33, 45.10), 
@@ -126,74 +141,79 @@ def create_map():
         ]
         folium.Polygon(
             locations=region_coords,
-            color="#00a8cc",
+            color="#4285F4", # أزرق جوجل
             weight=2,
             fill=True,
-            fill_color="#00a8cc",
-            fill_opacity=0.15,
-            popup="النطاق الجغرافي التقريبي"
+            fill_opacity=0.1,
+            popup="منطقة تركمن إيلي"
         ).add_to(m)
 
-    # إضافة العلامات (Markers)
-    marker_cluster = plugins.MarkerCluster().add_to(m) # تجميع النقاط عند التصغير
-    
-    for _, row in filtered_df.iterrows():
-        folium.Marker(
-            location=[row["خط العرض"], row["خط الطول"]],
-            popup=folium.Popup(f"<b>{row['المدينة']}</b><br>السكان: {row['التعداد التقديري']:,}", max_width=300),
-            tooltip=row['المدينة'],
-            icon=folium.Icon(color="blue", icon="info-sign", prefix='fa')
-        ).add_to(marker_cluster)
+    # 5. محاكاة حركة المرور (AntPath Animation)
+    if show_traffic:
+        # مسار تجريبي بين كركوك وأربيل
+        route = [
+            [35.47, 44.39], [35.50, 44.38], [35.60, 44.30], 
+            [35.80, 44.10], [36.19, 44.01]
+        ]
+        plugins.AntPath(
+            locations=route,
+            color="#1a73e8", # المسار الأزرق
+            weight=6,
+            delay=800,
+            opacity=0.7,
+            pulse_color="white"
+        ).add_to(m)
 
-    # أدوات إضافية
-    plugins.Fullscreen(position='topleft').add_to(m)
-    plugins.LocateControl(position='bottomright').add_to(m)
-    plugins.MiniMap(toggle_display=True, position='bottomleft').add_to(m)
-    
+    # 6. إضافة معالم (Markers) بأيقونات مميزة
+    landmarks = [
+        {"name": "قلعة كركوك", "loc": [35.47, 44.39], "icon": "star", "color": "orange"},
+        {"name": "قلعة تلعفر", "loc": [36.376, 42.45], "icon": "flag", "color": "red"},
+        {"name": "مرقد الإمام زين العابدين", "loc": [34.45, 44.38], "icon": "bookmark", "color": "green"},
+    ]
+
+    for mark in landmarks:
+        folium.Marker(
+            location=mark["loc"],
+            popup=mark["name"],
+            tooltip=mark["name"],
+            icon=folium.Icon(color=mark["color"], icon=mark["icon"], prefix='fa')
+        ).add_to(m)
+
+    # إضافة خاصية النقر لاستخراج الإحداثيات
+    m.add_child(folium.LatLngPopup())
+
     return m
 
 # --------------------------------------------------------
-# 7. التخطيط: الخريطة + الرسوم البيانية
+# 5. عرض الخريطة
 # --------------------------------------------------------
-row_map, row_charts = st.columns([2, 1])
 
-with row_map:
-    st.subheader("🗺️ الخريطة")
-    map_obj = create_map()
-    # عرض الخريطة
-    st_folium(map_obj, height=550, use_container_width=True)
+# استدعاء دالة الخريطة
+map_obj = create_map()
 
-with row_charts:
-    st.subheader("📊 الرسوم البيانية")
+# عرض الخريطة على كامل ارتفاع الشاشة تقريباً (85vh)
+st_data = st_folium(
+    map_obj, 
+    width=None, # يأخذ العرض الكامل تلقائياً
+    height=750, # ارتفاع ثابت لمحاكاة الشاشة الكاملة
+    use_container_width=True
+)
+
+# --------------------------------------------------------
+# 6. التفاعل السفلي (Bottom Sheet)
+# --------------------------------------------------------
+# إذا قام المستخدم بالنقر على الخريطة، نعرض الإحداثيات ورابط جوجل مابس
+if st_data['last_clicked']:
+    lat = st_data['last_clicked']['lat']
+    lng = st_data['last_clicked']['lng']
     
-    # Chart 1: Bar Chart
-    fig_bar = px.bar(
-        filtered_df, 
-        x='المدينة', 
-        y='التعداد التقديري',
-        color='النوع',
-        title="توزيع السكان حسب المدينة",
-        color_discrete_sequence=px.colors.qualitative.Safe
-    )
-    fig_bar.update_layout(xaxis_title=None, yaxis_title=None, showlegend=False)
-    st.plotly_chart(fig_bar, use_container_width=True)
-    
-    # Chart 2: Pie Chart
-    fig_pie = px.pie(
-        filtered_df, 
-        names='المحافظة', 
-        values='التعداد التقديري', 
-        title="نسب التوزيع السكاني حسب المحافظة",
-        hole=0.4
-    )
-    st.plotly_chart(fig_pie, use_container_width=True)
-
-# --------------------------------------------------------
-# 8. جدول البيانات
-# --------------------------------------------------------
-with st.expander("📂 عرض سجل البيانات التفصيلي"):
-    st.dataframe(
-        filtered_df[["المدينة", "المحافظة", "النوع", "التعداد التقديري"]],
-        use_container_width=True,
-        hide_index=True
-    )
+    st.markdown(f"""
+        <div class="info-box">
+            <h4 style="margin:0; color:#333;">📍 تم تحديد موقع</h4>
+            <p style="margin:5px 0;">الإحداثيات: {lat:.5f}, {lng:.5f}</p>
+            <a href="https://www.google.com/maps/search/?api=1&query={lat},{lng}" target="_blank" 
+               style="background-color:#4285F4; color:white; padding:8px 15px; text-decoration:none; border-radius:5px; font-size:14px;">
+               فتح في خرائط Google الأصلية ↗
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
